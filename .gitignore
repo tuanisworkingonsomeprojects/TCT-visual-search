@@ -190,7 +190,8 @@ cython_debug/
 *.json
 
 datasets/*
+!datasets/README.md
 
-results/*
+*.pkl
 
 *.pt
