@@ -1,0 +1,20 @@
+!!python/object:ml_collections.config_dict.config_dict.ConfigDict
+_convert_dict: true
+_fields:
+  annotations: /media/data/philipp_data/COCOstuff/annotations_virtualhome_compatible/train.json
+  batch_size: 16
+  checkpoint: null
+  git: 6910dabbb50d4b103bbd85df6f5a78fff1834161
+  imagedir: /media/data/philipp_data/COCOstuff/images/train/
+  imbalance_reweighting: false
+  learning_rate: 1.0e-05
+  num_classes: 15
+  num_decoder_heads: 8
+  num_decoder_layers: 6
+  test_annotations: /media/data/philipp_data/COCOstuff/annotations_virtualhome_compatible/val.json
+  test_imagedir: /media/data/philipp_data/COCOstuff/images/val/
+  uncertainty_gate_type: learned
+  uncertainty_threshold: 0.0
+  weighted_prediction: false
+_locked: false
+_type_safe: true
