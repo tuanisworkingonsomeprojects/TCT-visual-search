@@ -383,10 +383,21 @@ class COCODatasetFullMix(COCODataset):
     This can be useful for in-depth attention map generated.
     """
     def __getitem__(self, idx):
+        
+        
+        
         # choice for context and target target
         # context choice: 0 -> random, 1 -> empty, 2 -> original 
         # target choice: 0 -> random, 1 -> empty, 2 -> original
-        choice_context, choice_target, target_image = random.choice([0, 1, 2]), random.choice([0, 1, 2]), None
+        
+        
+        p = random.random()
+        
+        # Encourage to learn the relationship between the context and target
+        if p < 0.5:
+            choice_context, choice_target, target_image = 1, 1, None
+        else:
+            choice_context, choice_target, target_image = random.choice([0, 1, 2]), random.choice([0, 1, 2]), None
         
         # info inherited from the COCODataset
         image, target_original, bbox_relative, label = super().__getitem__(idx)
