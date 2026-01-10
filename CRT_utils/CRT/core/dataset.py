@@ -95,6 +95,8 @@ class COCODataset(Dataset):
             self.normalize = True
         else:
             self.normalize = False
+            
+        self.len = len(self.annotations)
 
     def __len__(self):
         return len(self.annotations)
@@ -512,6 +514,157 @@ class COCODatasetFullMix(COCODataset):
             
         return image, target_image, bbox_relative, label
     
+
+class COCODatasetFullyAugmented(COCODataset):
+    
+    # _____ BUILD A SELCTION TABLE _____
+    choice_idx = 0
+
+    choice_dict = {}
+
+    for choice_context in range(3):
+        for choice_target in range(3):
+            choice_dict[choice_idx] = (choice_context, choice_target)
+            choice_idx += 1
+            
+    del choice_idx, choice_context, choice_target
+    # _____ BUILD A SELCTION TABLE _____
+    
+    
+    def __len__(self):
+        return 9 * self.len
+        
+    def __getitem__(self, idx):
+        
+
+        # _____ GENERATE AN REAL INTERNAL INDEX _____
+        choice_idx = idx // self.len
+        
+        choice_context, choice_target = self.choice_dict[choice_idx]
+        
+        target_image = None
+        
+        idx = idx - (choice_idx * self.len)
+        # _____ GENERATE AN REAL INTERNAL INDEX _____
+        
+        
+        # info inherited from the COCODataset
+        image, target_original, bbox_relative, label = super().__getitem__(idx)
+        # get the label name
+        label_name = self.idx2label[label]
+        
+        # for test purposes
+        # print(label_name, choice_context, choice_target)
+        
+        # get the random index within the category
+        category_size = len(self.category_idx_dict[label_name])       
+        random_idx = random.randint(0, category_size-1)
+        # get the original position of target in context image
+        bbox_og = bbox_relative.tolist()
+        xmin_og, ymin_og, w_og, h_og = int(self.image_size[1]*bbox_og[0]), int(self.image_size[0]*bbox_og[1]), int(self.image_size[1]*bbox_og[2]+1), int(self.image_size[0]*bbox_og[3]+1) 
+        
+        if choice_target == 0:
+            # get the annotation according to the random index
+            target_random_annotation = self.annotations[self.category_idx_dict[label_name][random_idx]]
+            image_random = Image.open(self.id2file[target_random_annotation["image_id"]])
+            image_random = image_random.convert("RGB") 
+            xmin_random, ymin_random, w_random, h_random = target_random_annotation["bbox"]
+            target_image = image_random.crop((int(xmin_random), int(ymin_random), int(xmin_random + w_random), int(ymin_random + h_random)))
+            # resize the target image
+            target_image = target_image.resize(self.image_size)
+            # convert to torch tensor
+            target_image = to_tensor(target_image)
+            # normalize
+            if self.normalize:
+                target_image = normalize(target_image, self.normalize_means, self.normalize_stds)        
+                
+        if choice_target == 1:
+            target_image = target_original
+            target_image[:,:,:] = 0
+                
+        if choice_target == 2:
+            target_image = target_original
+            
+            if self.normalize:
+                target_image = normalize(target_image, self.normalize_means, self.normalize_stds)
+            
+            
+                
+                
+        # _____        
+        
+        if choice_target == 0 and choice_context == 0:
+            w, h = min(w_og, min(xmin_og+w_og, self.image_size[1])-xmin_og), min(h_og, min(ymin_og+h_og, self.image_size[0])-ymin_og)
+            target_image = transforms.Resize((h, w))(target_image)
+            image[:, ymin_og:ymin_og+h_og, xmin_og:xmin_og+w_og] = target_image
+            target_image = transforms.Resize(self.image_size)(target_image)
+            
+        elif choice_target == 0 and choice_context == 1: 
+            image[:, ymin_og:ymin_og+h_og, xmin_og:xmin_og+w_og] = 0
+            
+        elif choice_target == 0 and choice_context == 2: 
+            target_image = transforms.Resize(self.image_size)(target_image)
+            
+        # _____ 
+            
+            
+        
+        elif choice_target == 1 and choice_context == 0:
+            w, h = min(w_og, min(xmin_og+w_og, self.image_size[1])-xmin_og), min(h_og, min(ymin_og+h_og, self.image_size[0])-ymin_og)
+            target_image = transforms.Resize((h, w))(target_image)
+            image[:, ymin_og:ymin_og+h_og, xmin_og:xmin_og+w_og] = target_image
+            target_image = torch.zeros(3, self.image_size[0], self.image_size[1]) 
+        
+        elif choice_target == 1 and choice_context == 1:
+            image[:, ymin_og:ymin_og+h_og, xmin_og:xmin_og+w_og] = 0 
+            target_image = torch.zeros(3, self.image_size[0], self.image_size[1])
+            
+        elif choice_target == 1 and choice_context == 2:
+            target_image = torch.zeros(3, self.image_size[0], self.image_size[1])  
+            
+        # _____ 
+        
+        elif choice_target == 2 and choice_context == 0:
+            w, h = min(w_og, min(xmin_og+w_og, self.image_size[1])-xmin_og), min(h_og, min(ymin_og+h_og, self.image_size[0])-ymin_og)           
+            target_image = transforms.Resize(self.image_size)(target_image)
+                        
+            # _____ SELECT RANDOM TARGET TO PASTE IN THE CONTEXT IMAGE _____            
+            target_random_annotation = self.annotations[self.category_idx_dict[label_name][random_idx]]            
+            image_random = Image.open(self.id2file[target_random_annotation["image_id"]])
+            image_random = image_random.convert("RGB")             
+            xmin_random, ymin_random, w_random, h_random = target_random_annotation["bbox"]            
+            random_target_image = image_random.crop((int(xmin_random), int(ymin_random), int(xmin_random + w_random), int(ymin_random + h_random)))            
+            # resize the target image
+            random_target_image = random_target_image.resize(self.image_size)            
+            # convert to torch tensor
+            random_target_image = to_tensor(random_target_image)            
+            # normalize
+            if self.normalize:
+                random_target_image = normalize(random_target_image, self.normalize_means, self.normalize_stds)                 
+            # _____ SELECT RANDOM TARGET TO PASTE IN THE CONTEXT IMAGE _____
+            
+            random_target_image = transforms.Resize((h, w))(random_target_image)
+            
+            image[:, ymin_og:ymin_og+h_og, xmin_og:xmin_og+w_og] = random_target_image
+            
+        elif choice_target == 2 and choice_context == 1:
+            w, h = min(w_og, min(xmin_og+w_og, self.image_size[1])-xmin_og), min(h_og, min(ymin_og+h_og, self.image_size[0])-ymin_og)
+            
+            target_image = transforms.Resize(self.image_size)(target_image)
+            
+            image[:, ymin_og:ymin_og+h_og, xmin_og:xmin_og+w_og] = 0
+            
+        elif choice_target == 2 and choice_context == 2:
+            
+            target_image = transforms.Resize(self.image_size)(target_image)
+        
+            
+        return image, target_image, bbox_relative, label
+        
+        
+        
+        
+        
         
     
 # 2-B
