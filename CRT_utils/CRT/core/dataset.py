@@ -429,7 +429,9 @@ class COCODatasetFullMix(COCODataset):
             target_image = to_tensor(target_image)
             # normalize
             if self.normalize:
-                target_image = normalize(target_image, self.normalize_means, self.normalize_stds)        
+                target_image = normalize(target_image, self.normalize_means, self.normalize_stds)
+                
+            
                 
         if choice_target == 1:
             target_image = target_original
@@ -440,6 +442,8 @@ class COCODatasetFullMix(COCODataset):
             
             if self.normalize:
                 target_image = normalize(target_image, self.normalize_means, self.normalize_stds)
+            
+            
             
             
                 
@@ -563,6 +567,10 @@ class COCODatasetFullyAugmented(COCODataset):
         bbox_og = bbox_relative.tolist()
         xmin_og, ymin_og, w_og, h_og = int(self.image_size[1]*bbox_og[0]), int(self.image_size[0]*bbox_og[1]), int(self.image_size[1]*bbox_og[2]+1), int(self.image_size[0]*bbox_og[3]+1) 
         
+        
+        
+        # _____ TARGET PROCESSING PART _____
+        
         if choice_target == 0:
             # get the annotation according to the random index
             target_random_annotation = self.annotations[self.category_idx_dict[label_name][random_idx]]
@@ -576,87 +584,120 @@ class COCODatasetFullyAugmented(COCODataset):
             target_image = to_tensor(target_image)
             # normalize
             if self.normalize:
-                target_image = normalize(target_image, self.normalize_means, self.normalize_stds)        
+                target_image = normalize(target_image, self.normalize_means, self.normalize_stds)  
+                
+            target_image = transforms.Resize(self.image_size)(target_image)
                 
         if choice_target == 1:
-            target_image = target_original
-            target_image[:,:,:] = 0
+            target_image = torch.zeros(3, self.image_size[0], self.image_size[1]) 
                 
         if choice_target == 2:
             target_image = target_original
             
             if self.normalize:
                 target_image = normalize(target_image, self.normalize_means, self.normalize_stds)
-            
-            
                 
-                
-        # _____        
-        
-        if choice_target == 0 and choice_context == 0:
-            w, h = min(w_og, min(xmin_og+w_og, self.image_size[1])-xmin_og), min(h_og, min(ymin_og+h_og, self.image_size[0])-ymin_og)
-            target_image = transforms.Resize((h, w))(target_image)
-            image[:, ymin_og:ymin_og+h_og, xmin_og:xmin_og+w_og] = target_image
             target_image = transforms.Resize(self.image_size)(target_image)
-            
-        elif choice_target == 0 and choice_context == 1: 
-            image[:, ymin_og:ymin_og+h_og, xmin_og:xmin_og+w_og] = 0
-            
-        elif choice_target == 0 and choice_context == 2: 
-            target_image = transforms.Resize(self.image_size)(target_image)
-            
-        # _____ 
-            
-            
+        # _____ TARGET PROCESSING PART _____
         
-        elif choice_target == 1 and choice_context == 0:
-            w, h = min(w_og, min(xmin_og+w_og, self.image_size[1])-xmin_og), min(h_og, min(ymin_og+h_og, self.image_size[0])-ymin_og)
-            target_image = transforms.Resize((h, w))(target_image)
-            image[:, ymin_og:ymin_og+h_og, xmin_og:xmin_og+w_og] = target_image
-            target_image = torch.zeros(3, self.image_size[0], self.image_size[1]) 
         
-        elif choice_target == 1 and choice_context == 1:
-            image[:, ymin_og:ymin_og+h_og, xmin_og:xmin_og+w_og] = 0 
-            target_image = torch.zeros(3, self.image_size[0], self.image_size[1])
-            
-        elif choice_target == 1 and choice_context == 2:
-            target_image = torch.zeros(3, self.image_size[0], self.image_size[1])  
-            
-        # _____ 
         
-        elif choice_target == 2 and choice_context == 0:
-            w, h = min(w_og, min(xmin_og+w_og, self.image_size[1])-xmin_og), min(h_og, min(ymin_og+h_og, self.image_size[0])-ymin_og)           
-            target_image = transforms.Resize(self.image_size)(target_image)
-                        
-            # _____ SELECT RANDOM TARGET TO PASTE IN THE CONTEXT IMAGE _____            
-            target_random_annotation = self.annotations[self.category_idx_dict[label_name][random_idx]]            
-            image_random = Image.open(self.id2file[target_random_annotation["image_id"]])
-            image_random = image_random.convert("RGB")             
-            xmin_random, ymin_random, w_random, h_random = target_random_annotation["bbox"]            
-            random_target_image = image_random.crop((int(xmin_random), int(ymin_random), int(xmin_random + w_random), int(ymin_random + h_random)))            
+        
+        
+        # _____ CONTEXT PROCESSING PART _____
+        if choice_context == 0:
+            
+            random_idx_context = random.randint(0, category_size-1)
+            
+            context_random_annotation = self.annotations[self.category_idx_dict[label_name][random_idx_context]]
+            
+            image_random_context = Image.open(self.id2file[context_random_annotation["image_id"]])
+            image_random_context = image_random_context.convert("RGB") 
+            
+            xmin_random, ymin_random, w_random, h_random = context_random_annotation["bbox"]
+            
+            target_in_random_context_image = image_random_context.crop((
+                int(xmin_random), 
+                int(ymin_random), 
+                int(xmin_random + w_random), 
+                int(ymin_random + h_random)
+            ))
+            
             # resize the target image
-            random_target_image = random_target_image.resize(self.image_size)            
+            target_in_random_context_image = target_in_random_context_image.resize(self.image_size)
+            
             # convert to torch tensor
-            random_target_image = to_tensor(random_target_image)            
+            target_in_random_context_image = to_tensor(target_in_random_context_image)
+            
             # normalize
             if self.normalize:
-                random_target_image = normalize(random_target_image, self.normalize_means, self.normalize_stds)                 
-            # _____ SELECT RANDOM TARGET TO PASTE IN THE CONTEXT IMAGE _____
-            
-            random_target_image = transforms.Resize((h, w))(random_target_image)
-            
-            image[:, ymin_og:ymin_og+h_og, xmin_og:xmin_og+w_og] = random_target_image
-            
-        elif choice_target == 2 and choice_context == 1:
+                target_in_random_context_image = normalize(target_in_random_context_image, self.normalize_means, self.normalize_stds)       
+
             w, h = min(w_og, min(xmin_og+w_og, self.image_size[1])-xmin_og), min(h_og, min(ymin_og+h_og, self.image_size[0])-ymin_og)
-            
-            target_image = transforms.Resize(self.image_size)(target_image)
-            
+            target_in_random_context_image = transforms.Resize((h, w))(target_in_random_context_image)
+            image[:, ymin_og:ymin_og+h_og, xmin_og:xmin_og+w_og] = target_in_random_context_image
+        
+        
+        if choice_context == 1:
             image[:, ymin_og:ymin_og+h_og, xmin_og:xmin_og+w_og] = 0
             
-        elif choice_target == 2 and choice_context == 2:
+        
+        
+        
+        # _____ CONTEXT PROCESSING PART _____
+        
+        
+        
+        
+        
+                
+#         # _____ RANDOM TARGET       
+        
+#         if choice_target == 0 and choice_context == 0:
+
+#             target_image = transforms.Resize(self.image_size)(target_image)
             
-            target_image = transforms.Resize(self.image_size)(target_image)
+            
+            
+#         elif choice_target == 0 and choice_context == 1: 
+#             target_image = transforms.Resize(self.image_size)(target_image)
+            
+            
+            
+#         elif choice_target == 0 and choice_context == 2: 
+#             target_image = transforms.Resize(self.image_size)(target_image)
+            
+#         # _____ ZERO TARGET
+        
+#         elif choice_target == 1 and choice_context == 0:
+
+#             target_image = torch.zeros(3, self.image_size[0], self.image_size[1]) 
+        
+#         elif choice_target == 1 and choice_context == 1:
+            
+#             target_image = torch.zeros(3, self.image_size[0], self.image_size[1])
+            
+#         elif choice_target == 1 and choice_context == 2:
+#             target_image = torch.zeros(3, self.image_size[0], self.image_size[1])  
+            
+#         # _____ ORIGINAL TARGET
+        
+#         elif choice_target == 2 and choice_context == 0:
+
+#             target_image = transforms.Resize(self.image_size)(target_image)
+                        
+           
+            
+#         elif choice_target == 2 and choice_context == 1:
+            
+            
+#             target_image = transforms.Resize(self.image_size)(target_image)
+            
+            
+            
+#         elif choice_target == 2 and choice_context == 2:
+            
+#             target_image = transforms.Resize(self.image_size)(target_image)
         
             
         return image, target_image, bbox_relative, label
