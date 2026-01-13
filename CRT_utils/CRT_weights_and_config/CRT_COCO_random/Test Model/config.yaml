@@ -1,0 +1,22 @@
+!!python/object:ml_collections.config_dict.config_dict.ConfigDict
+_allow_dotted_keys: false
+_convert_dict: true
+_fields:
+  annotations: ../datasets/COCO18_dset_for_CRT_training/train_metadata.json
+  batch_size: 32
+  checkpoint: null
+  git: 5b5dc27a31a43c1a58f0121ff3491b0c8215987c
+  imagedir: ../datasets/COCO18_dset_for_CRT_training/coco18_for_crt
+  imbalance_reweighting: false
+  learning_rate: 1.0e-05
+  num_classes: 18
+  num_decoder_heads: 8
+  num_decoder_layers: 6
+  test_annotations: ../datasets/COCO18_dset_for_CRT_training/val_metadata.json
+  test_imagedir: ../datasets/COCO18_dset_for_CRT_training/coco18_for_crt_test
+  uncertainty_gate_type: learned
+  uncertainty_threshold: 0
+  weighted_prediction: false
+_locked: false
+_sort_keys: true
+_type_safe: true

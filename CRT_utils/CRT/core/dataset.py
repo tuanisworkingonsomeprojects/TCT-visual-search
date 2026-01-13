@@ -393,7 +393,7 @@ class COCODatasetFullMix(COCODataset):
         # target choice: 0 -> random, 1 -> empty, 2 -> original
         
         
-        p = random.random()
+
         
         # Encourage to learn the relationship between the context and target
 
@@ -414,37 +414,11 @@ class COCODatasetFullMix(COCODataset):
         bbox_og = bbox_relative.tolist()
         xmin_og, ymin_og, w_og, h_og = int(self.image_size[1]*bbox_og[0]), int(self.image_size[0]*bbox_og[1]), int(self.image_size[1]*bbox_og[2]+1), int(self.image_size[0]*bbox_og[3]+1) 
         
-        if choice_target == 0:
-            # get the annotation according to the random index
-            target_random_annotation = self.annotations[self.category_idx_dict[label_name][random_idx]]
-            image_random = Image.open(self.id2file[target_random_annotation["image_id"]])
-            image_random = image_random.convert("RGB") 
-            xmin_random, ymin_random, w_random, h_random = target_random_annotation["bbox"]
-            target_image = image_random.crop((int(xmin_random), int(ymin_random), int(xmin_random + w_random), int(ymin_random + h_random)))
-            # resize the target image
-            target_image = target_image.resize(self.image_size)
-            # convert to torch tensor
-            target_image = to_tensor(target_image)
-            # normalize
-            if self.normalize:
-                target_image = normalize(target_image, self.normalize_means, self.normalize_stds)
+
                 
             
                 
-        # info inherited from the COCODataset
-        image, target_original, bbox_relative, label = super().__getitem__(idx)
-        # get the label name
-        label_name = self.idx2label[label]
         
-        # for test purposes
-        # print(label_name, choice_context, choice_target)
-        
-        # get the random index within the category
-        category_size = len(self.category_idx_dict[label_name])       
-        random_idx = random.randint(0, category_size-1)
-        # get the original position of target in context image
-        bbox_og = bbox_relative.tolist()
-        xmin_og, ymin_og, w_og, h_og = int(self.image_size[1]*bbox_og[0]), int(self.image_size[0]*bbox_og[1]), int(self.image_size[1]*bbox_og[2]+1), int(self.image_size[0]*bbox_og[3]+1) 
         
         
         
