@@ -5,7 +5,7 @@ _fields:
   annotations: ../datasets/COCO18_dset_for_CRT_training/train_metadata.json
   batch_size: 32
   checkpoint: null
-  git: 5b5dc27a31a43c1a58f0121ff3491b0c8215987c
+  git: 519da9edfef68775fa112529cd5c370346ed276d
   imagedir: ../datasets/COCO18_dset_for_CRT_training/coco18_for_crt
   imbalance_reweighting: false
   learning_rate: 1.0e-05

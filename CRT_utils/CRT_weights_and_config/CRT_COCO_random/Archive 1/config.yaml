@@ -4,8 +4,8 @@ _convert_dict: true
 _fields:
   annotations: ../datasets/COCO18_dset_for_CRT_training/train_metadata.json
   batch_size: 32
-  checkpoint: null
-  git: 61c90b997c92f042201e20c7b687b17e0ed05e7e
+  checkpoint: ../CRT_utils/CRT_weights_and_config/CRT_COCO_random/Archive 1/checkpoint_30.tar
+  git: 5b5dc27a31a43c1a58f0121ff3491b0c8215987c
   imagedir: ../datasets/COCO18_dset_for_CRT_training/coco18_for_crt
   imbalance_reweighting: false
   learning_rate: 1.0e-05
