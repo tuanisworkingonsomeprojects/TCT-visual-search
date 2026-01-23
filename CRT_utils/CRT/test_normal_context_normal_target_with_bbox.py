@@ -44,7 +44,7 @@ def test(
     
     model.to(device)
 
-    testset = COCODatasetZeroContextZeroTarget(
+    testset = COCODataset(
         annotations_file, 
         imagedir, 
         image_size      = image_size, 
