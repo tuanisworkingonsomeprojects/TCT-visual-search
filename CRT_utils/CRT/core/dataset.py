@@ -397,7 +397,21 @@ class COCODatasetFullMix(COCODataset):
         
         # Encourage to learn the relationship between the context and target
 
-        choice_context, choice_target, target_image = random.choice([0, 1, 2]), random.choice([0, 1, 2]), None
+#         choice_context, choice_target, target_image = random.choice([0, 1, 2]), random.choice([0, 1, 2]), None
+
+        # probabilities for context: random, zeroed, original
+        context_probs = [0.1, 0.5, 0.4]  # 50% chance to zero target region
+        # probabilities for target: random, zeroed, original
+        target_probs  = [0.1, 0.5, 0.4]  # 50% chance to zero target image
+
+        choice_context, choice_target = random.choices([0, 1, 2], weights=context_probs, k=1)[0], random.choices([0, 1, 2], weights=target_probs, k=1)[0]
+        
+        if random.random() < 0.2:  # 20% chance
+            choice_context = 1  # zero target region in context
+            choice_target  = 1  # zero target image
+
+        target_image = None
+        
         
         # info inherited from the COCODataset
         image, target_original, bbox_relative, label = super().__getitem__(idx)
