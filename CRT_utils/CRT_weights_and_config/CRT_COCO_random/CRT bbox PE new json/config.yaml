@@ -5,8 +5,8 @@ _fields:
   annotations: ../datasets/COCO18_dset_for_CRT_training/coco18_newtrain.json
   batch_size: 32
   checkpoint: ../CRT_utils/CRT_weights_and_config/CRT_COCO_random/CRT bbox PE new
-    json/checkpoint_64.tar
-  git: b1969ce119a6bbb969526db29c96c1120df52dda
+    json/checkpoint_220.tar
+  git: 1c647634b6de3d66ab4a5a840cd3721dc41743ab
   imagedir: ../datasets/COCO18_dset_for_CRT_training/coco18_for_crt
   imbalance_reweighting: false
   learning_rate: 1.0e-05
