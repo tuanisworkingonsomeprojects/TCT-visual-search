@@ -24,7 +24,7 @@ import PIL
 from PIL import Image, ImageDraw
 from tqdm import tqdm, trange
 import cv2 as cv
-from google.colab.patches import cv2_imshow
+# from google.colab.patches import cv2_imshow
 from ml_collections import ConfigDict
 
 # extract info of pic for further analysis
@@ -99,7 +99,7 @@ def searchProcesswithPath(tg_xy, attentionMap, image_size, size):
     return count, searchPath
 
 def model_performance(search_list, image_num):
-    search_counter = pd.value_counts(search_list)
+    search_counter = pd.Series(search_list).value_counts()
     max_search_times = max(search_list)
     sum_found_model = 0
     accu_model_performance = [0 for _ in range(max_search_times + 1)]
