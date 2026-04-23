@@ -195,3 +195,5 @@ datasets/*
 *.pkl
 
 *.pt
+
+!./datasets/COCO18_dset_for_CRT_training/coco18_test_deepgaze.json
