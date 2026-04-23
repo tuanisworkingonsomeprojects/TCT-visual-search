@@ -189,6 +189,15 @@ cython_debug/
 
 *.json
 
+# allow folders
+!datasets/
+
+# allow subfolders
+!datasets/**/
+
+# allow specific file
+!datasets/COCO18_dset_for_CRT_training/coco18_test_deepgaze.json
+
 datasets/*
 !datasets/README.md
 
@@ -196,4 +205,3 @@ datasets/*
 
 *.pt
 
-!./datasets/COCO18_dset_for_CRT_training/coco18_test_deepgaze.json
