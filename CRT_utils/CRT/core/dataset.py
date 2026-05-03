@@ -243,6 +243,16 @@ class COCODatasetRandomRecord(COCODataset):
         return image, target_image, bbox_relative, label, (dict_key, dict_value), (idx, self.category_idx_dict[label_name][random_idx])
     
 
+
+
+
+
+
+
+
+
+
+
 class COCODatasetMixOR(COCODataset):
     """
     Provides the same functionality as COCODataset but mix target crop(random or original) within the same class is returned.
@@ -375,6 +385,129 @@ class COCODatasetMix(COCODataset):
             
         elif choice_target == 1 and choice_context == 2:
             target_image = torch.zeros(3, self.image_size[0], self.image_size[1])     
+            
+        return image, target_image, bbox_relative, label
+
+
+
+class COCODatasetCustom(COCODataset):
+    """
+    Provides the same functionality as COCODataset but mix target crop(random or empty or original) within the same class is returned.
+    This can be useful for in-depth attention map generated.
+    """
+
+
+    def __init__(self, annotations_file, image_dir, image_size, category_dic_dir=None, idx2label=None, normalize_means=None, normalize_stds=None):
+        super().__init__(annotations_file, image_dir, image_size, category_dic_dir, idx2label, normalize_means, normalize_stds)
+
+        self.context_choice = 0
+        self.target_choice  = 0
+        
+    
+    def __getitem__(self, idx):
+        
+        
+        
+        # choice for context and target target
+        # context choice: 0 -> random, 1 -> empty, 2 -> original 
+        # target choice: 0 -> random, 1 -> empty, 2 -> original
+
+
+        choice_context = self.context_choice
+        choice_target  = self.target_choice
+
+        target_image = None
+        
+        
+        # info inherited from the COCODataset
+        image, target_original, bbox_relative, label = super().__getitem__(idx)
+        # get the label name
+        label_name = self.idx2label[label]
+        
+        # for test purposes
+        # print(label_name, choice_context, choice_target)
+        
+        # get the random index within the category
+        category_size = len(self.category_idx_dict[label_name])       
+        random_idx = random.randint(0, category_size-1)
+        # get the original position of target in context image
+        bbox_og = bbox_relative.tolist()
+        xmin_og, ymin_og, w_og, h_og = int(self.image_size[1]*bbox_og[0]), int(self.image_size[0]*bbox_og[1]), int(self.image_size[1]*bbox_og[2]+1), int(self.image_size[0]*bbox_og[3]+1) 
+        
+
+        
+        # _____ TARGET PROCESSING PART _____
+        
+        if choice_target == 0:
+            # get the annotation according to the random index
+            target_random_annotation = self.annotations[self.category_idx_dict[label_name][random_idx]]
+            image_random = Image.open(self.id2file[target_random_annotation["image_id"]])
+            image_random = image_random.convert("RGB") 
+            xmin_random, ymin_random, w_random, h_random = target_random_annotation["bbox"]
+            target_image = image_random.crop((int(xmin_random), int(ymin_random), int(xmin_random + w_random), int(ymin_random + h_random)))
+            # resize the target image
+            target_image = target_image.resize(self.image_size)
+            # convert to torch tensor
+            target_image = to_tensor(target_image)
+            # normalize
+            if self.normalize:
+                target_image = normalize(target_image, self.normalize_means, self.normalize_stds)  
+                
+            target_image = transforms.Resize(self.image_size)(target_image)
+                
+        if choice_target == 1:
+            target_image = torch.zeros(3, self.image_size[0], self.image_size[1]) 
+                
+        if choice_target == 2:
+            target_image = target_original
+            
+            if self.normalize:
+                target_image = normalize(target_image, self.normalize_means, self.normalize_stds)
+                
+            target_image = transforms.Resize(self.image_size)(target_image)
+        # _____ TARGET PROCESSING PART _____
+        
+        
+        
+        
+        
+        # _____ CONTEXT PROCESSING PART _____
+        if choice_context == 0:
+            
+            random_idx_context = random.randint(0, category_size-1)
+            
+            context_random_annotation = self.annotations[self.category_idx_dict[label_name][random_idx_context]]
+            
+            image_random_context = Image.open(self.id2file[context_random_annotation["image_id"]])
+            image_random_context = image_random_context.convert("RGB") 
+            
+            xmin_random, ymin_random, w_random, h_random = context_random_annotation["bbox"]
+            
+            target_in_random_context_image = image_random_context.crop((
+                int(xmin_random), 
+                int(ymin_random), 
+                int(xmin_random + w_random), 
+                int(ymin_random + h_random)
+            ))
+            
+            # resize the target image
+            target_in_random_context_image = target_in_random_context_image.resize(self.image_size)
+            
+            # convert to torch tensor
+            target_in_random_context_image = to_tensor(target_in_random_context_image)
+            
+            # normalize
+            if self.normalize:
+                target_in_random_context_image = normalize(target_in_random_context_image, self.normalize_means, self.normalize_stds)       
+
+            w, h = min(w_og, min(xmin_og+w_og, self.image_size[1])-xmin_og), min(h_og, min(ymin_og+h_og, self.image_size[0])-ymin_og)
+            target_in_random_context_image = transforms.Resize((h, w))(target_in_random_context_image)
+            image[:, ymin_og:ymin_og+h_og, xmin_og:xmin_og+w_og] = target_in_random_context_image
+        
+        
+        if choice_context == 1:
+            image[:, ymin_og:ymin_og+h_og, xmin_og:xmin_og+w_og] = 0
+        # _____ CONTEXT PROCESSING PART _____s
             
         return image, target_image, bbox_relative, label
     
