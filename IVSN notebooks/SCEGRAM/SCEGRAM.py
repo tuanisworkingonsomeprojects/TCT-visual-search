@@ -1,6 +1,6 @@
 import sys
 import cv2
-from google.colab.patches import cv2_imshow
+
 import time
 from matplotlib import pyplot as plt
 from tqdm import tqdm, trange
