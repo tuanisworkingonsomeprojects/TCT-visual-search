@@ -105,10 +105,21 @@ class ContextBreak(Dataset):
             (y_center-0.5*h) / image_height,
             w                / image_width,
             h                / image_height
-        ]).astype(np.int32)
+        ]).astype(np.float32)
+
+        x = int(bbox[0] * self.search_size[1])
+
+        y = int(bbox[1] * self.search_size[0])
+        
+        w = int(bbox[2] * self.search_size[1])
+        
+        h = int(bbox[3] * self.search_size[0])
+        
+        
 
         solution = np.zeros(self.search_size)
-        solution[bbox[1]:bbox[1]+bbox[3], bbox[0]:bbox[0]+bbox[2]] = 1
+
+        solution[y:y+h, x:x+w] = 1
 
         if self.is_transform:
             # transform search image
