@@ -277,19 +277,33 @@ def run_parallel(dataset):
 
 
 def logsearchProcess(x, y, tg_xy, attentionMap, image_size, size, coef):
+
+    device = attentionMap.device
+    coef = coef.to(device)
+
     mask_size = size
     tg_x, tg_y, w, h = tg_xy
-    tg_xmax, tg_ymax = tg_x + w, tg_y + h 
+    tg_xmax, tg_ymax = tg_x + w, tg_y + h
 
-    attenNP = (attentionMap[0,:,:].detach() * coef[0,:,:].detach()).numpy()
+    attenNP = (
+        attentionMap[0].detach() * coef[0]
+    ).cpu().numpy()
+
     y_fix, x_fix = y, x
 
-    x_max_s, x_min_s, y_max_s, y_min_s = min(x_fix+mask_size//2, image_size[1]-1), max(x_fix-mask_size//2, 0), min(y_fix+mask_size//2, image_size[0]-1), max(y_fix-mask_size//2, 0)
+    x_max_s = min(x_fix + mask_size // 2, image_size[1] - 1)
+    x_min_s = max(x_fix - mask_size // 2, 0)
+    y_max_s = min(y_fix + mask_size // 2, image_size[0] - 1)
+    y_min_s = max(y_fix - mask_size // 2, 0)
 
     if x_max_s < tg_x or x_min_s > tg_xmax or y_max_s < tg_y or y_min_s > tg_ymax:
+
         coef[0, y_min_s:y_max_s+1, x_min_s:x_max_s+1] = 1000
-        attenNP = (attentionMap[0,:,:].detach() * coef[0,:,:].detach()).numpy()
+
+        attenNP = (attentionMap[0].detach() * coef[0]).cpu().numpy()
+
         y_fix, x_fix = np.unravel_index(attenNP.argmax(), attenNP.shape)
+
         return False, [x_fix, y_fix], coef
 
     return True, [], coef
@@ -373,7 +387,13 @@ if __name__ == "__main__":
 
     deepgaze_res = run_parallel(dataset)
 
-    deepgaze_accu = model_performance(deepgaze_res, len(deepgaze_res))
+    res_list = list(deepgaze_res.values())
+
+    if len(res_list) == 0:
+
+        raise RuntimeError("All GPU workers failed. Check logs above.")
+
+    deepgaze_accu = model_performance(res_list, len(res_list))
 
     deepgaze_SCEGRAM_res = {}
     deepgaze_SCEGRAM_res['combined_accu'] = deepgaze_accu
