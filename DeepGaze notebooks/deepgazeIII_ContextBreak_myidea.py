@@ -73,60 +73,23 @@ sys.path.append("..")
 from ContextBreak.ContextBreak import ContextBreak
 
 
-# In[3]:
-
-
-dataset_config = dict(
-    dataset_dir = '../datasets/ContextBreak/ooc/ooc_dataset/',
-    info_dir    = '../datasets/ContextBreak/ooc/csv_for_exp/',
-    search_size = (320, 512),
-    target_size = (128, 128),
-    per_target   = False,
-    is_transform = True
-)
-
-
-
-
-# context_size, target_size = (224, 224), (224, 224)
-dataset = ContextBreak(**dataset_config)
-
-
-# In[4]:
-
-
-# with open("../IVSN/[SCEGRAM]bin_idxs.pkl", "rb") as tf:
-#     bin_info = pickle.load(tf) 
-
-
-# In[5]:
 
 def worker(gpu_id, dataset, indices, result_dict, progress_counter, total):
 
     import torch
-
     import deepgaze_pytorch
-
     from torchvision import transforms
-
     from scipy.ndimage import zoom
-
     from scipy.special import logsumexp
-
     import numpy as np
-
     import random
 
     device = torch.device(f"cuda:{gpu_id}")
-
     torch.cuda.set_device(device)
 
     # --- load model per GPU ---
-
     model = deepgaze_pytorch.DeepGazeIII(pretrained=True).to(device)
-
     model.eval()
-
     # --- centerbias (must be per process) ---
 
     image = face()
@@ -134,15 +97,10 @@ def worker(gpu_id, dataset, indices, result_dict, progress_counter, total):
     centerbias_template = np.load('centerbias_mit1003.npy')
 
     centerbias = zoom(
-
         centerbias_template,
-
         (320 / centerbias_template.shape[0], 512 / centerbias_template.shape[1]),
-
         order=0,
-
         mode='nearest'
-
     )
 
     centerbias -= logsumexp(centerbias)
@@ -178,23 +136,15 @@ def worker(gpu_id, dataset, indices, result_dict, progress_counter, total):
             fixation_history_y = np.array(history_y)
 
             x_hist_tensor = torch.tensor(
-
                 [fixation_history_x[model.included_fixations]],
-
                 device=device,
-
                 dtype=torch.float32
-
             )
 
             y_hist_tensor = torch.tensor(
-
                 [fixation_history_y[model.included_fixations]],
-
                 device=device,
-
                 dtype=torch.float32
-
             )
 
             with torch.no_grad():
@@ -204,19 +154,12 @@ def worker(gpu_id, dataset, indices, result_dict, progress_counter, total):
             path.append([history_x[-1], history_y[-1]])
 
             isTg, coordinates, coef = logsearchProcess(
-
                 history_x[-1],
-
                 history_y[-1],
-
                 tg_loc,
-
                 log_density.squeeze(0).cpu(),
-
                 (320, 512),
-
                 48,
-
                 coef
 
             )
@@ -330,43 +273,6 @@ def fixation_initialize():
     return x, y
 
 
-# In[6]:
-
-
-DEVICE = 'cuda'
-img_size = (320, 512)
-
-# you can use DeepGazeI or DeepGazeIIE
-model = deepgaze_pytorch.DeepGazeIII(pretrained=True)
-
-# use multiple GPUs
-
-# move model to GPU
-model = model.to(DEVICE)
-
-
-
-
-image = face()
-centerbias_template = np.load('centerbias_mit1003.npy')
-# rescale to match image size
-centerbias = zoom(centerbias_template, (image.shape[0]/centerbias_template.shape[0], image.shape[1]/centerbias_template.shape[1]), order=0, mode='nearest')
-# renormalize log density
-centerbias -= logsumexp(centerbias)
-centerbias_tensor = torch.tensor([centerbias], dtype=torch.float32).to(DEVICE)
-centerbias_tensor = transforms.Resize(img_size)(centerbias_tensor)
-
-
-
-
-size = 48
-deepgaze_CON_0_25, deepgaze_CON_25_50 = [], []
-deepgaze_INCON_0_25, deepgaze_INCON_25_50 = [], []
-scanpath, deepgaze_attention_map = {}, {}
-
-
-
-
 
 def sampleIncon(incon_bin_result, con_bin_result, times):
     sample_times = times
@@ -390,6 +296,56 @@ def balanced_accu(res_con, res_incon):
 
 
 if __name__ == "__main__":
+
+    dataset_config = dict(
+        dataset_dir = '../datasets/ContextBreak/ooc/ooc_dataset/',
+        info_dir    = '../datasets/ContextBreak/ooc/csv_for_exp/',
+        search_size = (320, 512),
+        target_size = (128, 128),
+        per_target   = False,
+        is_transform = True
+    )
+
+
+
+
+    # context_size, target_size = (224, 224), (224, 224)
+    dataset = ContextBreak(**dataset_config)
+
+
+
+    DEVICE = 'cuda'
+    img_size = (320, 512)
+
+    # you can use DeepGazeI or DeepGazeIIE
+    model = deepgaze_pytorch.DeepGazeIII(pretrained=True)
+
+    # use multiple GPUs
+
+    # move model to GPU
+    model = model.to(DEVICE)
+
+
+
+
+    image = face()
+    centerbias_template = np.load('centerbias_mit1003.npy')
+    # rescale to match image size
+    centerbias = zoom(centerbias_template, (image.shape[0]/centerbias_template.shape[0], image.shape[1]/centerbias_template.shape[1]), order=0, mode='nearest')
+    # renormalize log density
+    centerbias -= logsumexp(centerbias)
+    centerbias_tensor = torch.tensor([centerbias], dtype=torch.float32).to(DEVICE)
+    centerbias_tensor = transforms.Resize(img_size)(centerbias_tensor)
+
+
+
+
+    size = 48
+    deepgaze_CON_0_25, deepgaze_CON_25_50 = [], []
+    deepgaze_INCON_0_25, deepgaze_INCON_25_50 = [], []
+    scanpath, deepgaze_attention_map = {}, {}
+
+
 
     deepgaze_res = run_parallel(dataset)
 
