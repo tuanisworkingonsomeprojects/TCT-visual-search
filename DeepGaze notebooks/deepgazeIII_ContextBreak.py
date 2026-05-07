@@ -134,10 +134,19 @@ def fixation_initialize():
 # In[6]:
 
 
-DEVICE = 'mps'
+DEVICE = 'cuda'
 img_size = (320, 512)
+
 # you can use DeepGazeI or DeepGazeIIE
-model = deepgaze_pytorch.DeepGazeIII(pretrained=True).to(DEVICE)
+model = deepgaze_pytorch.DeepGazeIII(pretrained=True)
+
+# use multiple GPUs
+model = torch.nn.DataParallel(model, device_ids=[0,2,3])
+
+# move model to GPU
+model = model.to(DEVICE)
+
+
 image = face()
 centerbias_template = np.load('centerbias_mit1003.npy')
 # rescale to match image size
