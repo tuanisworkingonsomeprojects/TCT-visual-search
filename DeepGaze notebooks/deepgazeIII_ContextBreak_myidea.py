@@ -60,7 +60,10 @@ from scipy.datasets import face
 from scipy.ndimage import zoom
 from scipy.special import logsumexp
 import torch
+
 import torch.multiprocessing as mp
+mp.set_start_method("spawn", force=True)
+
 import deepgaze_pytorch
 from deepgaze_pytorch import modules
 
