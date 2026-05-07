@@ -76,145 +76,133 @@ from ContextBreak.ContextBreak import ContextBreak
 
 def worker(gpu_id, dataset, indices, result_dict, progress_counter, total):
 
-    print(f"[GPU {gpu_id}] starting worker", flush=True)
+    import torch
+    import deepgaze_pytorch
+    from torchvision import transforms
+    from scipy.ndimage import zoom
+    from scipy.special import logsumexp
+    import numpy as np
+    import random
 
-    try:
-        import torch
-        import deepgaze_pytorch
-        from torchvision import transforms
-        from scipy.ndimage import zoom
-        from scipy.special import logsumexp
-        import numpy as np
-        import random
+    device = torch.device(f"cuda:{gpu_id}")
+    torch.cuda.set_device(device)
 
-        device = torch.device(f"cuda:{gpu_id}")
-        torch.cuda.set_device(device)
+    # --- load model per GPU ---
+    model = deepgaze_pytorch.DeepGazeIII(pretrained=True).to(device)
+    model.eval()
+    torch.backends.cudnn.benchmark = True
+    # --- centerbias (must be per process) ---
 
-        # --- load model per GPU ---
-        model = deepgaze_pytorch.DeepGazeIII(pretrained=True).to(device)
-        model.eval()
-        print(f"[GPU {gpu_id}] model loaded", flush=True)
-        torch.backends.cudnn.benchmark = True
-        # --- centerbias (must be per process) ---
+    image = face()
 
-        image = face()
+    centerbias_template = np.load('centerbias_mit1003.npy')
 
-        centerbias_template = np.load('centerbias_mit1003.npy')
+    centerbias = zoom(
+        centerbias_template,
+        (320 / centerbias_template.shape[0], 512 / centerbias_template.shape[1]),
+        order=0,
+        mode='nearest'
+    )
 
-        centerbias = zoom(
-            centerbias_template,
-            (320 / centerbias_template.shape[0], 512 / centerbias_template.shape[1]),
-            order=0,
-            mode='nearest'
-        )
+    centerbias -= logsumexp(centerbias)
 
-        centerbias -= logsumexp(centerbias)
+    # centerbias_tensor = torch.tensor([centerbias], dtype=torch.float32).to(device)
+    centerbias_tensor = torch.from_numpy(centerbias).float().unsqueeze(0).to(device)
 
-        # centerbias_tensor = torch.tensor([centerbias], dtype=torch.float32).to(device)
-        centerbias_tensor = torch.from_numpy(centerbias).float().unsqueeze(0).to(device)
+    centerbias_tensor = transforms.Resize((320, 512))(centerbias_tensor)
 
-        centerbias_tensor = transforms.Resize((320, 512))(centerbias_tensor)
+    results = {}
 
-        results = {}
+    for id in indices:
 
-        print(f"[GPU {gpu_id}] processing {len(indices)} images", flush=True)
+        img, _, bbox_relative, category = dataset[id]
 
-        for id in indices:
+        tg_loc = bbox_cordinates(bbox_relative, 512, 320)
 
-            img, _, bbox_relative, category = dataset[id]
+        history_x, history_y = fixation_initialize()
 
-            tg_loc = bbox_cordinates(bbox_relative, 512, 320)
+        img_tensor = img.unsqueeze(0).to(device)
 
-            history_x, history_y = fixation_initialize()
+        img_tensor = transforms.Resize((320, 512))(img_tensor)
 
-            img_tensor = img.unsqueeze(0).to(device)
+        count, max_search = 0, 999
 
-            img_tensor = transforms.Resize((320, 512))(img_tensor)
+        coef = torch.ones((1, 320, 512), device=device)
 
-            count, max_search = 0, 999
+        path = []
 
-            coef = torch.ones((1, 320, 512), device=device)
+        while count < max_search:
 
-            path = []
+            fixation_history_x = np.array(history_x)
 
-            while count < max_search:
+            fixation_history_y = np.array(history_y)
 
-                fixation_history_x = np.array(history_x)
+            x_hist_tensor = torch.tensor(
+                [fixation_history_x[model.included_fixations]],
+                device=device,
+                dtype=torch.float32
+            )
 
-                fixation_history_y = np.array(history_y)
+            y_hist_tensor = torch.tensor(
+                [fixation_history_y[model.included_fixations]],
+                device=device,
+                dtype=torch.float32
+            )
 
-                x_hist_tensor = torch.tensor(
-                    [fixation_history_x[model.included_fixations]],
-                    device=device,
-                    dtype=torch.float32
-                )
+            with torch.no_grad():
 
-                y_hist_tensor = torch.tensor(
-                    [fixation_history_y[model.included_fixations]],
-                    device=device,
-                    dtype=torch.float32
-                )
+                log_density = model(img_tensor, centerbias_tensor, x_hist_tensor, y_hist_tensor)
 
-                with torch.no_grad():
+            path.append([history_x[-1], history_y[-1]])
 
-                    log_density = model(img_tensor, centerbias_tensor, x_hist_tensor, y_hist_tensor)
+            isTg, coordinates, coef = logsearchProcess(
+                history_x[-1],
+                history_y[-1],
+                tg_loc,
+                log_density.squeeze(0).cpu(),
+                (320, 512),
+                48,
+                coef
 
-                path.append([history_x[-1], history_y[-1]])
+            )
 
-                isTg, coordinates, coef = logsearchProcess(
-                    history_x[-1],
-                    history_y[-1],
-                    tg_loc,
-                    log_density.squeeze(0),
-                    (320, 512),
-                    48,
-                    coef
+            count += 1
 
-                )
+            if isTg:
 
-                count += 1
+                break
 
-                if isTg:
+            history_x.append(coordinates[0])
 
-                    break
+            history_y.append(coordinates[1])
 
-                history_x.append(coordinates[0])
+        results[id] = count
 
-                history_y.append(coordinates[1])
+        # progress PER IMAGE
 
-            results[id] = count
+        with progress_counter.get_lock():
+            progress_counter.value += 1
+            done = progress_counter.value
 
-            # progress PER IMAGE
+        if done % 50 == 0:
+            print(
+                f"[GPU {gpu_id}] "
+                f"{done}/{total} images completed "
+                f"({100.0 * done / total:.2f}%)",
+                flush=True
+            )
+    result_dict[gpu_id] = results
 
-            with progress_counter.get_lock():
-                progress_counter.value += 1
-                done = progress_counter.value
+    print(f"[GPU {gpu_id}] finished {len(indices)} images", flush=True)
+    # result_dict[gpu_id] = results
 
-            if done % 50 == 0:
-                print(
-                    f"[GPU {gpu_id}] "
-                    f"{done}/{total} images completed "
-                    f"({100.0 * done / total:.2f}%)",
-                    flush=True
-                )
-        result_dict[gpu_id] = results
+    # with progress_counter.get_lock():
 
-        print(f"[GPU {gpu_id}] finished {len(indices)} images", flush=True)
-        # result_dict[gpu_id] = results
+    #     progress_counter.value += 1
 
-        # with progress_counter.get_lock():
+    #     if progress_counter.value % 50 == 0:
 
-        #     progress_counter.value += 1
-
-        #     if progress_counter.value % 50 == 0:
-
-        #         print(f"[GPU {gpu_id}] progress: {progress_counter.value}/{total}")
-    except Exception as e:
-        import traceback
-
-        print(f"[GPU {gpu_id}] CRASHED")
-
-        traceback.print_exc()
+    #         print(f"[GPU {gpu_id}] progress: {progress_counter.value}/{total}")
 
 def run_parallel(dataset):
 
@@ -257,51 +245,35 @@ def run_parallel(dataset):
 
 def logsearchProcess(x, y, tg_xy, attentionMap, image_size, size, coef):
 
+    device = attentionMap.device
+    coef = coef.to(device)
+
     mask_size = size
-
     tg_x, tg_y, w, h = tg_xy
-
     tg_xmax, tg_ymax = tg_x + w, tg_y + h
+
+    attenNP = (
+        attentionMap[0].detach() * coef[0]
+    ).cpu().numpy()
 
     y_fix, x_fix = y, x
 
     x_max_s = min(x_fix + mask_size // 2, image_size[1] - 1)
-
     x_min_s = max(x_fix - mask_size // 2, 0)
-
     y_max_s = min(y_fix + mask_size // 2, image_size[0] - 1)
-
     y_min_s = max(y_fix - mask_size // 2, 0)
 
-    if (
-
-        x_max_s < tg_x or
-
-        x_min_s > tg_xmax or
-
-        y_max_s < tg_y or
-
-        y_min_s > tg_ymax
-
-    ):
+    if x_max_s < tg_x or x_min_s > tg_xmax or y_max_s < tg_y or y_min_s > tg_ymax:
 
         coef[0, y_min_s:y_max_s+1, x_min_s:x_max_s+1] = 1000
 
-        attention = attentionMap[0] * coef[0]
+        attenNP = (attentionMap[0].detach() * coef[0]).cpu().numpy()
 
-        flat_idx = torch.argmax(attention)
-
-        h, w = attention.shape
-
-        y_fix = (flat_idx // w).item()
-
-        x_fix = (flat_idx % w).item()
+        y_fix, x_fix = np.unravel_index(attenNP.argmax(), attenNP.shape)
 
         return False, [x_fix, y_fix], coef
 
     return True, [], coef
-
-
 
 def fixation_initialize():
     k, x_range, y_range = 4, 50, 30
