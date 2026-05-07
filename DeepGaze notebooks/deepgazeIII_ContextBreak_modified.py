@@ -146,7 +146,7 @@ def fixation_initialize():
 # In[6]:
 
 
-DEVICE = 'cuda'
+DEVICE = torch.device("cuda:0")
 img_size = (320, 512)
 
 # you can use DeepGazeI or DeepGazeIIE
@@ -182,9 +182,7 @@ scanpath, deepgaze_attention_map = {}, {}
 
 deepgaze_res = []
 
-for batch_id, batch in enumerate(trange(len(loader))):
-
-    imgs, _, bbox_relatives, categories = next(iter(loader))
+for batch_id, (imgs, _, bbox_relatives, categories) in enumerate(tqdm(loader)):
 
     # move batch to GPU
     imgs = imgs.to(DEVICE, non_blocking=True)
@@ -245,7 +243,7 @@ for batch_id, batch in enumerate(trange(len(loader))):
             dtype=torch.float32
         ).to(DEVICE)
 
-        centerbias_batch = centerbias_tensor.repeat(B, 1, 1)
+        centerbias_batch = centerbias_tensor.repeat(B, 1, 1).to(DEVICE)
 
         with torch.no_grad():
 
