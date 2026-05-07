@@ -60,6 +60,7 @@ from scipy.datasets import face
 from scipy.ndimage import zoom
 from scipy.special import logsumexp
 import torch
+import torch.multiprocessing as mp
 import deepgaze_pytorch
 from deepgaze_pytorch import modules
 
@@ -95,6 +96,181 @@ dataset = ContextBreak(**dataset_config)
 
 
 # In[5]:
+
+def worker(gpu_id, dataset, indices, result_dict):
+
+    import torch
+
+    import deepgaze_pytorch
+
+    from torchvision import transforms
+
+    from scipy.ndimage import zoom
+
+    from scipy.special import logsumexp
+
+    import numpy as np
+
+    import random
+
+    device = torch.device(f"cuda:{gpu_id}")
+
+    torch.cuda.set_device(device)
+
+    # --- load model per GPU ---
+
+    model = deepgaze_pytorch.DeepGazeIII(pretrained=True).to(device)
+
+    model.eval()
+
+    # --- centerbias (must be per process) ---
+
+    image = face()
+
+    centerbias_template = np.load('centerbias_mit1003.npy')
+
+    centerbias = zoom(
+
+        centerbias_template,
+
+        (320 / centerbias_template.shape[0], 512 / centerbias_template.shape[1]),
+
+        order=0,
+
+        mode='nearest'
+
+    )
+
+    centerbias -= logsumexp(centerbias)
+
+    centerbias_tensor = torch.tensor([centerbias], dtype=torch.float32).to(device)
+
+    centerbias_tensor = transforms.Resize((320, 512))(centerbias_tensor)
+
+    results = {}
+
+    for id in indices:
+
+        img, _, bbox_relative, category = dataset[id]
+
+        tg_loc = bbox_cordinates(bbox_relative, 512, 320)
+
+        history_x, history_y = fixation_initialize()
+
+        img_tensor = img.unsqueeze(0).to(device)
+
+        img_tensor = transforms.Resize((320, 512))(img_tensor)
+
+        count, max_search = 0, 999
+
+        coef = torch.ones((1, 320, 512), device=device)
+
+        path = []
+
+        while count < max_search:
+
+            fixation_history_x = np.array(history_x)
+
+            fixation_history_y = np.array(history_y)
+
+            x_hist_tensor = torch.tensor(
+
+                [fixation_history_x[model.included_fixations]],
+
+                device=device,
+
+                dtype=torch.float32
+
+            )
+
+            y_hist_tensor = torch.tensor(
+
+                [fixation_history_y[model.included_fixations]],
+
+                device=device,
+
+                dtype=torch.float32
+
+            )
+
+            with torch.no_grad():
+
+                log_density = model(img_tensor, centerbias_tensor, x_hist_tensor, y_hist_tensor)
+
+            path.append([history_x[-1], history_y[-1]])
+
+            isTg, coordinates, coef = logsearchProcess(
+
+                history_x[-1],
+
+                history_y[-1],
+
+                tg_loc,
+
+                log_density.squeeze(0).cpu(),
+
+                (320, 512),
+
+                48,
+
+                coef
+
+            )
+
+            count += 1
+
+            if isTg:
+
+                break
+
+            history_x.append(coordinates[0])
+
+            history_y.append(coordinates[1])
+
+        results[id] = count
+
+    result_dict[gpu_id] = results
+
+def run_parallel(dataset):
+
+    num_gpus = 3
+
+    indices = np.array_split(np.arange(len(dataset)), num_gpus)
+
+    manager = mp.Manager()
+
+    result_dict = manager.dict()
+
+    processes = []
+
+    for gpu_id in range(num_gpus):
+
+        p = mp.Process(
+
+            target=worker,
+
+            args=(gpu_id, dataset, indices[gpu_id], result_dict)
+
+        )
+
+        p.start()
+
+        processes.append(p)
+
+    for p in processes:
+
+        p.join()
+
+    # merge results
+
+    final_results = {}
+
+    for d in result_dict.values():
+
+        final_results.update(d)
+
+    return final_results
+
 
 
 def logsearchProcess(x, y, tg_xy, attentionMap, image_size, size, coef):
@@ -172,47 +348,7 @@ deepgaze_res = []
 
 # selected_imgs = bin_info['con_(0, 25]'].tolist() + bin_info['con_(25, 50]'].tolist() + bin_info['incon_(0, 25]'].tolist() + bin_info['incon_(25, 50]'].tolist()
 
-for id in trange(0, len(dataset)):
-    # if id not in selected_imgs:
-    #     continue
-
-    img, _, bbox_relative, category = dataset[id]
-    # get the target bounding box
-    tg_loc = bbox_cordinates(bbox_relative, img_size[1], img_size[0])
-    history_x, history_y = fixation_initialize()
-
-    # transform img to tensor
-    # img_tensor = torch.tensor([img.transpose(2, 0, 1)]).to(DEVICE)
-    img_tensor = img.unsqueeze(0).to(DEVICE)
-    img_tensor = transforms.Resize(img_size)(img_tensor)
-
-    count, max_search, coef, path = 0, 999, torch.ones((1, 320, 512)), []
-    while count < max_search:
-        fixation_history_x = np.array(history_x)
-        fixation_history_y = np.array(history_y)
-        x_hist_tensor = torch.tensor([fixation_history_x[model.included_fixations]]).to(DEVICE)
-        y_hist_tensor = torch.tensor([fixation_history_y[model.included_fixations]]).to(DEVICE)
-        log_density_prediction = model(img_tensor, centerbias_tensor, x_hist_tensor, y_hist_tensor)
-
-        path.append([history_x[-1], history_y[-1]])
-        isTg, coordinates, coef = logsearchProcess(history_x[-1], history_y[-1], tg_loc, log_density_prediction.squeeze(0).cpu(), img_size, size, coef)
-        count += 1
-
-        if isTg:
-            # deepgaze_attention_map[id] = log_density_prediction.squeeze(0).cpu()
-            break
-
-        history_x.append(coordinates[0])
-        history_y.append(coordinates[1])
-
-    scanpath[id] = path
-
-
-    # _____ MODIFIED CODE _____
-    deepgaze_res.append(count)
-
-    # _____ MODIFIED CODE _____
-
+deepgaze_res = run_parallel(dataset)
 
 
 #     if id in bin_info['con_(0, 25]'].tolist():
