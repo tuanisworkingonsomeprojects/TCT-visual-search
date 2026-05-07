@@ -249,27 +249,20 @@ def run_parallel(dataset):
     for gpu_id in range(num_gpus):
 
         p = mp.Process(
-
             target=worker,
-
             args=(gpu_id, dataset, indices[gpu_id], result_dict)
-
         )
 
         p.start()
-
         processes.append(p)
 
-    for p in processes:
-
+    for p in tqdm(processes):
         p.join()
 
     # merge results
-
     final_results = {}
 
     for d in result_dict.values():
-
         final_results.update(d)
 
     return final_results
