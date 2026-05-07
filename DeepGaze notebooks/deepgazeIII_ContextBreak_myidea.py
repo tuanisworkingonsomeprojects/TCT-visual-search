@@ -90,6 +90,7 @@ def worker(gpu_id, dataset, indices, result_dict, progress_counter, total):
     # --- load model per GPU ---
     model = deepgaze_pytorch.DeepGazeIII(pretrained=True).to(device)
     model.eval()
+    torch.backends.cudnn.benchmark = True
     # --- centerbias (must be per process) ---
 
     image = face()
@@ -105,7 +106,8 @@ def worker(gpu_id, dataset, indices, result_dict, progress_counter, total):
 
     centerbias -= logsumexp(centerbias)
 
-    centerbias_tensor = torch.tensor([centerbias], dtype=torch.float32).to(device)
+    # centerbias_tensor = torch.tensor([centerbias], dtype=torch.float32).to(device)
+    centerbias_tensor = torch.from_numpy(centerbias).float().unsqueeze(0).to(device)
 
     centerbias_tensor = transforms.Resize((320, 512))(centerbias_tensor)
 
@@ -176,15 +178,31 @@ def worker(gpu_id, dataset, indices, result_dict, progress_counter, total):
 
         results[id] = count
 
+        # progress PER IMAGE
+
+        with progress_counter.get_lock():
+            progress_counter.value += 1
+            done = progress_counter.value
+
+        if done % 50 == 0:
+            print(
+                f"[GPU {gpu_id}] "
+                f"{done}/{total} images completed "
+                f"({100.0 * done / total:.2f}%)",
+                flush=True
+            )
     result_dict[gpu_id] = results
 
-    with progress_counter.get_lock():
+    print(f"[GPU {gpu_id}] finished {len(indices)} images", flush=True)
+    # result_dict[gpu_id] = results
 
-        progress_counter.value += 1
+    # with progress_counter.get_lock():
 
-        if progress_counter.value % 50 == 0:
+    #     progress_counter.value += 1
 
-            print(f"[GPU {gpu_id}] progress: {progress_counter.value}/{total}")
+    #     if progress_counter.value % 50 == 0:
+
+    #         print(f"[GPU {gpu_id}] progress: {progress_counter.value}/{total}")
 
 def run_parallel(dataset):
 
@@ -311,32 +329,6 @@ if __name__ == "__main__":
 
     # context_size, target_size = (224, 224), (224, 224)
     dataset = ContextBreak(**dataset_config)
-
-
-
-    DEVICE = 'cuda'
-    img_size = (320, 512)
-
-    # you can use DeepGazeI or DeepGazeIIE
-    model = deepgaze_pytorch.DeepGazeIII(pretrained=True)
-
-    # use multiple GPUs
-
-    # move model to GPU
-    model = model.to(DEVICE)
-
-
-
-
-    image = face()
-    centerbias_template = np.load('centerbias_mit1003.npy')
-    # rescale to match image size
-    centerbias = zoom(centerbias_template, (image.shape[0]/centerbias_template.shape[0], image.shape[1]/centerbias_template.shape[1]), order=0, mode='nearest')
-    # renormalize log density
-    centerbias -= logsumexp(centerbias)
-    centerbias_tensor = torch.tensor([centerbias], dtype=torch.float32).to(DEVICE)
-    centerbias_tensor = transforms.Resize(img_size)(centerbias_tensor)
-
 
 
 
