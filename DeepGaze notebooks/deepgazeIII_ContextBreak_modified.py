@@ -111,6 +111,8 @@ def logsearchProcess(x, y, tg_xy, attentionMap, image_size, size, coef):
     tg_x, tg_y, w, h = tg_xy
     tg_xmax, tg_ymax = tg_x + w, tg_y + h 
 
+    
+
     # attenNP = (attentionMap[0,:,:].detach() * coef[0,:,:].detach()).numpy()
     attenNP = (attentionMap.detach() * coef.detach()).cpu().numpy()
 
@@ -271,7 +273,7 @@ for batch_id, (imgs, _, bbox_relatives, categories) in enumerate(tqdm(loader)):
                 histories_x[i][-1],
                 histories_y[i][-1],
                 tg_locs[i],
-                log_density_prediction[i].cpu(),
+                log_density_prediction[i],
                 img_size,
                 size,
                 coef[i]
