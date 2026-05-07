@@ -29,7 +29,8 @@ sys.path.append('../ViT_utils')
 
 
 # In[2]:
-
+from multiprocessing import Value
+import time
 
 import sys
 import cv2
@@ -100,7 +101,7 @@ dataset = ContextBreak(**dataset_config)
 
 # In[5]:
 
-def worker(gpu_id, dataset, indices, result_dict):
+def worker(gpu_id, dataset, indices, result_dict, progress_counter, total):
 
     import torch
 
@@ -234,7 +235,19 @@ def worker(gpu_id, dataset, indices, result_dict):
 
     result_dict[gpu_id] = results
 
+    with progress_counter.get_lock():
+
+        progress_counter.value += 1
+
+        if progress_counter.value % 50 == 0:
+
+            print(f"[GPU {gpu_id}] progress: {progress_counter.value}/{total}")
+
 def run_parallel(dataset):
+
+    progress_counter = mp.Value('i', 0)
+
+    total = len(dataset)
 
     num_gpus = 3
 
@@ -250,13 +263,13 @@ def run_parallel(dataset):
 
         p = mp.Process(
             target=worker,
-            args=(gpu_id, dataset, indices[gpu_id], result_dict)
+            args=(gpu_id, dataset, indices[gpu_id], result_dict, progress_counter, len(dataset))
         )
 
         p.start()
         processes.append(p)
 
-    for p in tqdm(processes):
+    for p in processes:
         p.join()
 
     # merge results
