@@ -337,7 +337,6 @@ centerbias_tensor = torch.tensor([centerbias], dtype=torch.float32).to(DEVICE)
 centerbias_tensor = transforms.Resize(img_size)(centerbias_tensor)
 
 
-# In[ ]:
 
 
 size = 48
@@ -346,44 +345,7 @@ deepgaze_INCON_0_25, deepgaze_INCON_25_50 = [], []
 scanpath, deepgaze_attention_map = {}, {}
 
 
-deepgaze_res = []
 
-
-# selected_imgs = bin_info['con_(0, 25]'].tolist() + bin_info['con_(25, 50]'].tolist() + bin_info['incon_(0, 25]'].tolist() + bin_info['incon_(25, 50]'].tolist()
-
-deepgaze_res = run_parallel(dataset)
-
-
-#     if id in bin_info['con_(0, 25]'].tolist():
-#         deepgaze_CON_0_25.append(count)
-#     elif id in bin_info['con_(25, 50]'].tolist():
-#         deepgaze_CON_25_50.append(count)
-
-#     elif id in bin_info['incon_(0, 25]'].tolist():
-#         deepgaze_INCON_0_25.append(count)
-#     elif id in bin_info['incon_(25, 50]'].tolist():
-#         deepgaze_INCON_25_50.append(count)
-
-    # print("search times_{}: ".format(id), count)
-
-# deepgaze_CON_res = deepgaze_CON_0_25 + deepgaze_CON_25_50
-# deepgaze_INCON_res = deepgaze_INCON_0_25 + deepgaze_INCON_25_50
-# deepgaze_res = deepgaze_CON_res + deepgaze_INCON_res
-
-
-# In[ ]:
-
-
-np.mean(deepgaze_res)
-
-
-# In[ ]:
-
-
-# np.mean(deepgaze_res), np.mean(deepgaze_CON_res), np.mean(deepgaze_INCON_res)
-
-
-# In[ ]:
 
 
 def sampleIncon(incon_bin_result, con_bin_result, times):
@@ -406,42 +368,21 @@ def balanced_accu(res_con, res_incon):
     return res
 
 
-# In[ ]:
+
+if __name__ == "__main__":
+
+    deepgaze_res = run_parallel(dataset)
+
+    deepgaze_accu = model_performance(deepgaze_res, len(deepgaze_res))
+
+    deepgaze_SCEGRAM_res = {}
+    deepgaze_SCEGRAM_res['combined_accu'] = deepgaze_accu
+
+    print(np.mean(list(deepgaze_res.values())))
 
 
-deepgaze_accu = model_performance(deepgaze_res, len(deepgaze_res))
-
-
-# In[ ]:
-
-
-# times = 100
-# deepgaze_CON_accu = [0] + model_performance(deepgaze_CON_res, len(deepgaze_CON_res))
-# deepgaze_INCON_accu = sampleIncon(deepgaze_INCON_res, deepgaze_CON_res, times)
-# deepgaze_accu = balanced_accu(deepgaze_CON_accu, deepgaze_INCON_accu)
-# deepgaze_accu[:11], deepgaze_CON_accu[:11], deepgaze_INCON_accu[:11]
-
-
-# In[ ]:
-
-
-deepgaze_SCEGRAM_res = {}
-deepgaze_SCEGRAM_res['combined_accu'] = deepgaze_accu
-# deepgaze_SCEGRAM_res['con_accu'] = deepgaze_CON_accu
-# deepgaze_SCEGRAM_res['incon_accu'] = deepgaze_INCON_accu
-# deepgaze_SCEGRAM_res['con_[0,25)'] = deepgaze_CON_0_25
-# deepgaze_SCEGRAM_res['con_[25,50)'] = deepgaze_CON_25_50
-# deepgaze_SCEGRAM_res['incon_[0,25)'] = deepgaze_INCON_0_25
-# deepgaze_SCEGRAM_res['incon_[25,50)'] = deepgaze_INCON_25_50
-# deepgaze_SCEGRAM_res['scanpath'] = scanpath
-# deepgaze_SCEGRAM_res['attention_map'] = deepgaze_attention_map
-
-
-# In[ ]:
-
-
-with open("../results/ContextBreak/ContextBreak_deepgaze_res.pkl", "wb") as tf:
-    pickle.dump(deepgaze_SCEGRAM_res, tf)
+    with open("../results/ContextBreak/ContextBreak_deepgaze_res.pkl", "wb") as tf:
+        pickle.dump(deepgaze_SCEGRAM_res, tf)
 
 
 # In[ ]:
