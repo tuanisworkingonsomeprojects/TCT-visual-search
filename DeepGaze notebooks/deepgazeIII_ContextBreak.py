@@ -146,6 +146,8 @@ model = torch.nn.DataParallel(model, device_ids=[0,2,3])
 # move model to GPU
 model = model.to(DEVICE)
 
+real_model = model.module if hasattr(model, "module") else model
+
 
 image = face()
 centerbias_template = np.load('centerbias_mit1003.npy')
@@ -189,8 +191,8 @@ for id in trange(0, len(dataset)):
     while count < max_search:
         fixation_history_x = np.array(history_x)
         fixation_history_y = np.array(history_y)
-        x_hist_tensor = torch.tensor([fixation_history_x[model.included_fixations]]).to(DEVICE)
-        y_hist_tensor = torch.tensor([fixation_history_y[model.included_fixations]]).to(DEVICE)
+        x_hist_tensor = torch.tensor([fixation_history_x[real_model.included_fixations]]).to(DEVICE)
+        y_hist_tensor = torch.tensor([fixation_history_y[real_model.included_fixations]]).to(DEVICE)
         log_density_prediction = model(img_tensor, centerbias_tensor, x_hist_tensor, y_hist_tensor)
 
         path.append([history_x[-1], history_y[-1]])
