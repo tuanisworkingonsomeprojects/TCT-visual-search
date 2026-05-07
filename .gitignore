@@ -205,3 +205,5 @@ datasets/*
 
 *.pt
 
+code
+vscode_cli.tar.gz
