@@ -111,7 +111,9 @@ def logsearchProcess(x, y, tg_xy, attentionMap, image_size, size, coef):
     tg_x, tg_y, w, h = tg_xy
     tg_xmax, tg_ymax = tg_x + w, tg_y + h 
 
-    attenNP = (attentionMap[0,:,:].detach() * coef[0,:,:].detach()).numpy()
+    # attenNP = (attentionMap[0,:,:].detach() * coef[0,:,:].detach()).numpy()
+    attenNP = (attentionMap.detach() * coef.detach()).cpu().numpy()
+
     y_fix, x_fix = y, x
 
     x_max_s, x_min_s, y_max_s, y_min_s = min(x_fix+mask_size//2, image_size[1]-1), max(x_fix-mask_size//2, 0), min(y_fix+mask_size//2, image_size[0]-1), max(y_fix-mask_size//2, 0)
