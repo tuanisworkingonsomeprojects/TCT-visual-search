@@ -118,7 +118,10 @@ def logsearchProcess(x, y, tg_xy, attentionMap, image_size, size, coef):
 
     if x_max_s < tg_x or x_min_s > tg_xmax or y_max_s < tg_y or y_min_s > tg_ymax:
         coef[0, y_min_s:y_max_s+1, x_min_s:x_max_s+1] = 1000
-        attenNP = (attentionMap[0,:,:].detach() * coef[0,:,:].detach()).numpy()
+        # attenNP = (attentionMap[0,:,:].detach() * coef[0,:,:].detach()).numpy()
+
+
+        attenNP = (attentionMap.detach() * coef.detach()).cpu().numpy()
         y_fix, x_fix = np.unravel_index(attenNP.argmax(), attenNP.shape)
         return False, [x_fix, y_fix], coef
 
