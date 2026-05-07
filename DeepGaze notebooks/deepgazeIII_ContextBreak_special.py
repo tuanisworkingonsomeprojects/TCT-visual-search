@@ -2,6 +2,21 @@
 # coding: utf-8
 
 # In[1]:
+import torch
+
+import torch.distributed as dist
+
+import os
+
+def setup_ddp():
+
+    dist.init_process_group(backend="nccl")
+
+    local_rank = int(os.environ["LOCAL_RANK"])
+
+    torch.cuda.set_device(local_rank)
+
+    return local_rank
 
 
 on_colab = False
@@ -51,6 +66,7 @@ from PIL import Image, ImageDraw
 
 import torch
 from torch.utils.data import Dataset
+from torch.utils.data import DistributedSampler
 from torchvision.transforms.functional import to_tensor, normalize
 from torchvision import transforms
 
@@ -87,10 +103,12 @@ dataset_config = dict(
 
 # context_size, target_size = (224, 224), (224, 224)
 dataset = ContextBreak(**dataset_config)
+sampler = DistributedSampler(dataset, shuffle=False)
+
 loader = DataLoader(
     dataset,
     batch_size=16,
-    shuffle=False,
+    sampler=sampler,
     num_workers=8,
     pin_memory=True,
     persistent_workers=True
@@ -153,14 +171,21 @@ def fixation_initialize():
 DEVICE = torch.device("cuda:0")
 img_size = (320, 512)
 
-# you can use DeepGazeI or DeepGazeIIE
-model = deepgaze_pytorch.DeepGazeIII(pretrained=True)
-
-# move model to GPU
-model = model.to("cuda:0")
 
 # use multiple GPUs
-model = torch.nn.DataParallel(model, device_ids=[0,2,3])
+local_rank = setup_ddp()
+
+device = torch.device(f"cuda:{local_rank}")
+
+# you can use DeepGazeI or DeepGazeIIE
+model = deepgaze_pytorch.DeepGazeIII(pretrained=True)
+model = model.to(device)
+
+model = torch.nn.parallel.DistributedDataParallel(
+    model,
+    device_ids=[local_rank],
+    output_device=local_rank
+)
 
 real_model = model.module if hasattr(model, "module") else model
 
@@ -189,7 +214,7 @@ deepgaze_res = []
 for batch_id, (imgs, _, bbox_relatives, categories) in enumerate(tqdm(loader)):
 
     # move batch to GPU
-    imgs = imgs.to("cuda:0", non_blocking=True)
+    imgs = imgs.to(device, non_blocking=True)
 
     # resize whole batch
     imgs = transforms.Resize(img_size)(imgs)
@@ -393,6 +418,8 @@ with open("../results/ContextBreak/ContextBreak_deepgaze_res.pkl", "wb") as tf:
     pickle.dump(deepgaze_SCEGRAM_res, tf)
 
 
+dist.barrier()
+dist.destroy_process_group()
 # In[ ]:
 
 
